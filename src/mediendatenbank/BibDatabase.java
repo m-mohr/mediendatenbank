@@ -113,9 +113,12 @@ public class BibDatabase {
 	}
 
 	public boolean updateField(Integer id, String column, String data) {
+		if (id == null || id < 1 || data == null) {
+			return false;
+		}
 		try {
 			Statement statement = this.connection.createStatement();
-			statement.execute("UPDATE medien SET " + column + " = '" + data + "' WHERE id = '" + id + "'");
+			statement.execute("UPDATE medien SET " + column + " = '" + data + "' WHERE id = '" + id + "' LIMIT 1");
 			statement.close();
 			return true;
 		} catch (SQLException e) {
@@ -127,7 +130,7 @@ public class BibDatabase {
 	public boolean deleteEntry(Integer id) {
 		try {
 			Statement statement = this.connection.createStatement();
-			statement.execute("DELETE FROM medien WHERE id = '" + id + "'");
+			statement.execute("DELETE FROM medien WHERE id = '" + id + "' LIMIT 1");
 			statement.close();
 			return true;
 		} catch (SQLException e) {
@@ -245,7 +248,7 @@ public class BibDatabase {
 		try {
 			String sql = "";
 			if (getSetting(key) != null) {
-				sql = "UPDATE settings SET value = '" + value + "' WHERE title = '" + key + "'";
+				sql = "UPDATE settings SET value = '" + value + "' WHERE title = '" + key + "' LIMIT 1";
 			}
 			else {
 				sql = "INSERT INTO settings (title, value) VALUES ('" + key + "', '" + value + "')";

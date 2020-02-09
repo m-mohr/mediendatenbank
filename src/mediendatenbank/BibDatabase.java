@@ -2,6 +2,7 @@ package mediendatenbank;
 
 import java.io.File;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -117,8 +118,10 @@ public class BibDatabase {
 			return false;
 		}
 		try {
-			Statement statement = this.connection.createStatement();
-			statement.execute("UPDATE medien SET " + column + " = '" + data + "' WHERE id = '" + id + "' LIMIT 1");
+			PreparedStatement statement = this.connection.prepareStatement("UPDATE medien SET " + column + " = ? WHERE id = ?");
+			statement.setString(1, data);
+			statement.setInt(2, id);
+			statement.executeUpdate();
 			statement.close();
 			return true;
 		} catch (SQLException e) {
@@ -129,9 +132,9 @@ public class BibDatabase {
 
 	public boolean deleteEntry(Integer id) {
 		try {
-			Statement statement = this.connection.createStatement();
-			statement.execute("DELETE FROM medien WHERE id = '" + id + "' LIMIT 1");
-			statement.close();
+			PreparedStatement statement = this.connection.prepareStatement("DELETE FROM medien WHERE id = ?");
+			statement.setInt(1, id);
+			statement.executeUpdate();
 			return true;
 		} catch (SQLException e) {
 			e.printStackTrace();
@@ -140,28 +143,35 @@ public class BibDatabase {
 	}
 
 	public Integer countEntries() {
-		return this.countEntries("SELECT COUNT(*) FROM medien");
+		try {
+			PreparedStatement statement = this.connection.prepareStatement("SELECT COUNT(*) FROM medien");
+			return this.countEntries(statement);
+		} catch (SQLException e) {
+			e.printStackTrace();
+			return null;
+		}
 	}
 	
 	public Integer countEntries(Type type) {
-		return this.countEntries("SELECT COUNT(*) FROM medien WHERE type = '" + this.typeToInt(type) + "'");
-	}
-	
-	private Integer countEntries(String query) {
 		try {
-			Statement statement = this.connection.createStatement();
-			ResultSet resultSet = statement.executeQuery(query);
-			statement.close();
-
-			resultSet.next();
-			String count = resultSet.getString(1);
-			resultSet.close();
-
-			return new Integer(count);
+			PreparedStatement statement = this.connection.prepareStatement("SELECT COUNT(*) FROM medien WHERE type = ?");
+			statement.setInt(1, this.typeToInt(type));
+			return this.countEntries(statement);
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
 		return null;
+	}
+	
+	private Integer countEntries(PreparedStatement statement) throws SQLException {
+		ResultSet resultSet = statement.executeQuery();
+		statement.close();
+
+		resultSet.next();
+		String count = resultSet.getString(1);
+		resultSet.close();
+
+		return new Integer(count);
 	}
 
 	public List<BibEntry> readData(Type type) {
@@ -169,18 +179,28 @@ public class BibDatabase {
 	}
 
 	public List<BibEntry> readData(Type type, String query) {
+		if (query == null) {
+			query = "";
+		}
+		else {
+			query = query.trim();
+		}
+	
 		List<BibEntry> list = new ArrayList();
 		try {
 			String querySql = "";
-			if (query != null) {
-				query = query.trim();
-				if (!query.isEmpty()) {
-					querySql = " AND title LIKE '" + query + "%' ";
-				}
+			if (!query.isEmpty()) {
+				querySql += " AND title LIKE ? || '%'";
 			}
 			
-			Statement statement = this.connection.createStatement();
-			ResultSet resultSet = statement.executeQuery("SELECT id, title, medium, year, details, type FROM medien WHERE type = '" + this.typeToInt(type) + "' " + querySql + " ORDER BY title ASC");
+			PreparedStatement statement = this.connection.prepareStatement(
+				"SELECT id, title, medium, year, details, type FROM medien WHERE type = ? " + querySql + " ORDER BY title ASC"
+			);
+			statement.setInt(1, this.typeToInt(type));
+			if (!query.isEmpty()) {
+				statement.setString(2,query);
+			}
+			ResultSet resultSet = statement.executeQuery();
 			statement.close();
 
 			while (resultSet.next()) {
@@ -205,8 +225,11 @@ public class BibDatabase {
 	public List<String> readMediumValues(Type type) {
 		List<String> list = new ArrayList<String>();
 		try {
-			Statement statement = this.connection.createStatement();
-			ResultSet resultSet = statement.executeQuery("SELECT DISTINCT medium FROM medien WHERE type = '" + this.typeToInt(type) + "' ORDER BY medium ASC");
+			PreparedStatement statement = this.connection.prepareStatement(
+				"SELECT DISTINCT medium FROM medien WHERE type = ? ORDER BY medium ASC"
+			);
+			statement.setInt(1, this.typeToInt(type));
+			ResultSet resultSet = statement.executeQuery();
 			statement.close();
 
 			while (resultSet.next()) {
@@ -221,18 +244,21 @@ public class BibDatabase {
 
 	public String getSetting(String key) {
 		try {
-			Statement statement = this.connection.createStatement();
-			ResultSet rs = statement.executeQuery("SELECT value FROM settings WHERE title = '" + key + "' LIMIT 1");
+			PreparedStatement statement = this.connection.prepareStatement(
+				"SELECT value FROM settings WHERE title = ? LIMIT 1"
+			);
+			statement.setString(1, key);
+			ResultSet rs = statement.executeQuery();
+			statement.close();
 			String value = null;
 			if (rs.next()) {
 				value = rs.getString("value");
 			}
-			statement.close();
 			return value;
 		} catch (SQLException e) {
 			e.printStackTrace();
+			return null;
 		}
-		return null;
 	}
 	
 	public Integer getSettingAsInt(String key, Integer defaultValue) {
@@ -244,30 +270,45 @@ public class BibDatabase {
 		}
 	}
 
-	public void updateSetting(String key, String value) {
+	public boolean updateSetting(String key, String value) {
 		try {
-			String sql = "";
+			String sql;
 			if (getSetting(key) != null) {
-				sql = "UPDATE settings SET value = '" + value + "' WHERE title = '" + key + "' LIMIT 1";
+				sql = "UPDATE settings SET value = ? WHERE title = ?";
 			}
 			else {
-				sql = "INSERT INTO settings (title, value) VALUES ('" + key + "', '" + value + "')";
+				sql = "INSERT INTO settings (value, title) VALUES (?,?)";
 			}
-			Statement statement = this.connection.createStatement();
-			statement.execute(sql);
+			PreparedStatement statement = this.connection.prepareStatement(sql);
+			statement.setString(1, value);
+			statement.setString(2, key);
+			statement.executeUpdate();
 			statement.close();
+			return true;
 		} catch (SQLException e) {
 			e.printStackTrace();
+			return false;
 		}
 	}
 
 	public int insertData(String title, String medium, String year, String details, Type type) {
 		try {
-			Statement statement = this.connection.createStatement();
-			ResultSet rs = statement.executeQuery("INSERT INTO medien (title, medium, year, details, type) VALUES ('" + title + "', '" + medium + "', '" + year + "', '" + details + "', '" + this.typeToInt(type) + "'); call identity();");
+			PreparedStatement statement = this.connection.prepareStatement(
+				"INSERT INTO medien (title, medium, year, details, type) VALUES (?, ?, ?, ?, ?);"
+			);
+			statement.setString(1, title);
+			statement.setString(2, medium);
+			statement.setString(3, year);
+			statement.setString(4, details);
+			statement.setInt(5, this.typeToInt(type));
+			statement.executeUpdate();
+			statement.close();
+			
+			Statement statement2 = this.connection.createStatement();
+			ResultSet rs = statement2.executeQuery("call identity();");
+			statement2.close();
 			rs.next();
 			int lastid = rs.getInt(1);
-			statement.close();
 			return lastid;
 		} catch (SQLException e) {
 			e.printStackTrace();

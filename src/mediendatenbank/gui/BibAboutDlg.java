@@ -26,7 +26,7 @@ public class BibAboutDlg extends javax.swing.JDialog {
         setResizable(false);
 
         titleLbl.setFont(BibFont.getBold());
-        titleLbl.setText("Mediendatenbank 2.1.1");
+        titleLbl.setText("Mediendatenbank 2.1.2");
 
         authorLbl.setFont(BibFont.getRegular());
         authorLbl.setText("Geschrieben von Matthias Mohr, 2007 - 2020");

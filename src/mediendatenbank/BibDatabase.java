@@ -171,7 +171,7 @@ public class BibDatabase {
 		String count = resultSet.getString(1);
 		resultSet.close();
 
-		return new Integer(count);
+		return Integer.valueOf(count);
 	}
 
 	public List<BibEntry> readData(Type type) {
